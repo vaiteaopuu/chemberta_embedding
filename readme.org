@@ -1,0 +1,53 @@
+* Overview
+
+This shows how to use ChemBERTa model to create embeddings. ChemBERTa is a
+pre-trained unsupervised deep learning model, in this case a transformer-type
+architecture which provide the molecular finger prints.
+
+Details in the original paper:
+
+Chithrananda, Seyone, Gabriel Grand, and Bharath Ramsundar. "ChemBERTa:
+large-scale self-supervised pretraining for molecular property prediction."
+arXiv preprint arXiv:2010.09885 (2020).
+
+* Install packages
+
+#+begin_src bash
+pip install transformers torch
+conda install -c conda-forge rdkit
+#+end_src
+
+* Create the embedding
+
+#+begin_src python
+from transformers import AutoModel, AutoTokenizer
+import torch
+import pandas as pd
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("solubility_dataset.csv")
+
+model_name = "DeepChem/ChemBERTa-10M-MLM"
+model = AutoModel.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+smiles_strings = list(df["SMILES"])
+
+tokenized_smiles = tokenizer(smiles_strings, padding=True, truncation=True, return_tensors="pt")
+
+with torch.no_grad():
+    embeddings = model(**tokenized_smiles).last_hidden_state
+
+extended_attention_mask = tokenized_smiles["attention_mask"].unsqueeze(-1).expand(embeddings.size()).float()
+count = torch.clamp(extended_attention_mask.sum(1), min=1e-9)
+pooled_emb = (extended_attention_mask * embeddings).sum(dim=1)/count
+
+pca = PCA(n_components=2)
+projection = pca.fit_transform(pooled_emb)
+plt.scatter(projection[:, 0], projection[:, 1])
+plt.show()
+#+end_src
+
+#+RESULTS:
+: None
